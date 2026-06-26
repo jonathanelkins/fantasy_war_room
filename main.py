@@ -1,15 +1,17 @@
 from src.config import SEASONS
 from src.loaders import NFLDataLoader
-from src.features import FeatureBuilder
+from src.player_profiles import PlayerProfile
+from src.feature_store import FeatureStore
 
 
 loader = NFLDataLoader(SEASONS)
 
-weekly_raw = loader.load_weekly()
+weekly = loader.load_weekly()
+rosters = loader.load_rosters()
+schedules = loader.load_schedules()
 
-features = FeatureBuilder(weekly_raw)
-
-season_summary = features.build_season_summary()
+store = FeatureStore(weekly, rosters, schedules)
+season_summary = store.build()
 
 latest_season = season_summary["season"].max()
 
@@ -22,31 +24,19 @@ rankings = (
     .copy()
 )
 
-rankings["overall_rank"] = range(1, len(rankings) + 1)
+player_name = "Ja'Marr Chase"
 
-rankings["position_rank"] = (
-    rankings
-    .groupby("position")["fantasy_points_ppr"]
-    .rank(ascending=False, method="first")
-    .astype(int)
-)
+player_matches = rankings[
+    rankings["player_display_name"].str.contains(
+        player_name,
+        case=False,
+        na=False,
+        regex=False,
+    )
+]
 
-print(rankings[
-    [
-        "overall_rank",
-        "position_rank",
-        "player_display_name",
-        "position",
-        "team",
-        "games",
-        "fantasy_points_ppr",
-        "ppr_per_game",
-        "opportunities_per_game",
-        "touches_per_game",
-    ]
-].head(50))
+player_row = player_matches.iloc[0]
 
-rankings.to_csv(
-    "data/exports/latest_season_rankings.csv",
-    index=False
-)
+profile = PlayerProfile(player_row)
+
+print(profile.format_card())
