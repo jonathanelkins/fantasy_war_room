@@ -111,6 +111,11 @@ Consistency..........{self.player["consistency_score"]:.0%}
 
 Fantasy Tier.........{tier}
 
+Opportunity Score....{self.player["opportunity_score"]:.1f}
+Fantasy Score........{self.player["fantasy_score"]:.1f}
+Reliability Score....{self.player["reliability_score"]:.1f}
+Overall Score........{self.player["overall_player_score"]:.1f}
+
 PPR/Opp..............{self.player["ppr_per_opportunity"]:.2f}
 
 ══════════════════════════════════════════════

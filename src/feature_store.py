@@ -34,6 +34,64 @@ class FeatureStore:
         )
 
         return features
+    
+    def add_percentile_scores(self, features):
+        features = features.copy()
+
+        features["opportunity_score"] = (
+            features
+            .groupby(["season", "position"])["opportunities_per_game"]
+            .rank(pct=True)
+            * 100
+        )
+
+        features["touch_score"] = (
+            features
+            .groupby(["season", "position"])["touches_per_game"]
+            .rank(pct=True)
+            * 100
+        )
+
+        features["fantasy_score"] = (
+            features
+            .groupby(["season", "position"])["ppr_per_game"]
+            .rank(pct=True)
+            * 100
+        )
+
+        features["reliability_score"] = (
+            features
+            .groupby(["season", "position"])["consistency_score"]
+            .rank(pct=True)
+            * 100
+        )
+
+        features["boom_score"] = (
+            features
+            .groupby(["season", "position"])["boom_games"]
+            .rank(pct=True)
+            * 100
+        )
+
+        features["bust_score"] = (
+            100
+            - (
+                features
+                .groupby(["season", "position"])["bust_games"]
+                .rank(pct=True)
+                * 100
+            )
+        )
+
+        features["overall_player_score"] = (
+            features["opportunity_score"] * 0.30
+            + features["fantasy_score"] * 0.30
+            + features["reliability_score"] * 0.20
+            + features["boom_score"] * 0.10
+            + features["bust_score"] * 0.10
+        )
+
+        return features
 
     
     def build_player_features(self):
@@ -99,6 +157,7 @@ class FeatureStore:
         features = self.add_efficiency_features(features)
         features = self.add_consistency_features(features)
         features = self.add_player_metadata(features)
+        features = self.add_percentile_scores(features)
 
         features = features.sort_values(
             ["season", "fantasy_points_ppr"],
