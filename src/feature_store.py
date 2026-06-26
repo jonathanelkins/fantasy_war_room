@@ -22,6 +22,20 @@ class FeatureStore:
 
         return feature_store
     
+    def clean_numeric_features(self, features):
+        features = features.copy()
+
+        numeric = features.select_dtypes(include="number").columns
+
+        features[numeric] = (
+            features[numeric]
+            .replace([float('inf'), float("-inf")], 0)
+            .fillna(0)
+        )
+
+        return features
+
+    
     def build_player_features(self):
         """
         Build one row per player-season.
@@ -37,6 +51,9 @@ class FeatureStore:
 
         stat_columns = [
             "passing_yards",
+            "attempts",
+            "completions",
+            "passing_air_yards",
             "passing_tds",
             "passing_interceptions",
             "rushing_yards",
@@ -44,6 +61,9 @@ class FeatureStore:
             "rushing_tds",
             "targets",
             "receptions",
+            "receiving_air_yards",
+            "receiving_yards_after_catch",
+            "receiving_first_downs",
             "receiving_yards",
             "receiving_tds",
             "sack_fumbles_lost",
@@ -97,6 +117,9 @@ class FeatureStore:
             "season_type",
             "position",
             "passing_yards",
+            "attempts",
+            "completions",
+            "passing_air_yards",
             "passing_tds",
             "passing_interceptions",
             "rushing_yards",
@@ -104,6 +127,9 @@ class FeatureStore:
             "rushing_tds",
             "targets",
             "receptions",
+            "receiving_air_yards",
+            "receiving_yards_after_catch",
+            "receiving_first_downs",
             "receiving_yards",
             "receiving_tds",
             "sack_fumbles_lost",
@@ -158,6 +184,60 @@ class FeatureStore:
         features["ppr_per_opportunity"] = (
             features["fantasy_points_ppr"] / features["opportunities"]
         )
+
+        features["completion_pct"] = (
+            features["completions"] / features["attempts"]
+        )
+
+        features["yards_per_attempt"] = (
+            features["passing_yards"] / features["attempts"]
+        )
+
+        features["td_rate"] = (
+            features["passing_tds"] / features["attempts"]
+        )
+
+        features["int_rate"] = (
+            features["passing_interceptions"] / features["attempts"]
+        )
+
+        features["yards_per_carry"] = (
+            features["rushing_yards"] / features["carries"]
+        )
+
+        features["catch_rate"] = (
+            features["receptions"] / features["targets"]
+        )
+
+        features["yards_per_target"] = (
+            features["receiving_yards"] / features["targets"]
+        )
+
+        features["yards_per_reception"] = (
+            features["receiving_yards"] / features["receptions"]
+        )
+
+        features["yac_per_reception"] = (
+            features["receiving_yards_after_catch"] /
+            features["receptions"]
+        )
+
+        features["air_yards_per_target"] = (
+            features["receiving_air_yards"] /
+            features["targets"]
+        )
+
+        features["tds_per_game"] = (
+            features["total_tds"] /
+            features["games"]
+        )
+
+        features["first_downs_per_game"] = (
+            features["receiving_first_downs"] /
+            features["games"]
+        )
+
+        features = self.clean_numeric_features(features)
 
         return features
 
