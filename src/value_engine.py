@@ -58,7 +58,43 @@ class ValueEngine:
 
         features["fantasy_war"] = features["fantasy_war"].clip(lower=0)
 
+        features["war_rank"] = (
+            features["fantasy_war"]
+            .rank(method="dense", ascending=False)
+            .astype(int)
+        )
+
+        features["position_rank"] = (
+            features
+            .groupby("position")["fantasy_war"]
+            .rank(method="dense", ascending=False)
+            .astype(int)
+        )
+
+        features = self.add_value_tiers(features)
+
+        features["draft_value_score"] = (
+            features["overall_player_score"] * 0.5
+            + features["fantasy_war"] * 5
+        )
+
         return features
+    
+    def add_value_tiers(self, features):
+    
+        features = features.copy()
+    
+        features["value_tier"] = "Bench"
+    
+        features.loc[features["fantasy_war"] >= 1, "value_tier"] = "Depth"
+        features.loc[features["fantasy_war"] >= 3, "value_tier"] = "Starter"
+        features.loc[features["fantasy_war"] >= 5, "value_tier"] = "Difference Maker"
+        features.loc[features["fantasy_war"] >= 7, "value_tier"] = "Elite"
+        features.loc[features["fantasy_war"] >= 10, "value_tier"] = "League Winner"
+    
+        return features
+    
+
     
 
 

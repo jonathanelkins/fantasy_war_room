@@ -24,18 +24,22 @@ value_engine = ValueEngine(latest_features, LEAGUE_SETTINGS)
 
 war = value_engine.calculate_war()
 
-war = war.sort_values("fantasy_war", ascending=False)
+war = war.sort_values("draft_value_score", ascending=False)
 
 print(
     war[
         [
+            "war_rank",
+            "position_rank",
             "player_display_name",
             "position",
             "team",
             "ppr_per_game",
             "replacement_ppg",
             "fantasy_war",
+            "value_tier",
             "overall_player_score",
+            "draft_value_score",
         ]
     ]
     .head(50)
