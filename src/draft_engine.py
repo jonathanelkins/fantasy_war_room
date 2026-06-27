@@ -48,3 +48,30 @@ class DraftEngine:
         available["available_rank"] = range(1, len(available) + 1)
     
         return available.head(n)
+    
+    def recommend_pick(self, board, manager=None):
+
+        available = self.best_available(board, n=1)
+    
+        pick = available.iloc[0]
+    
+        recommendation = f"""
+    ════════════════════════════════════
+    
+    Recommended Pick
+    
+    {pick["player_display_name"]}
+    {pick["team"]} - {pick["position"]}
+    
+    Tier.............{pick["value_tier"]}
+    Projected PPG....{pick["projected_ppr_per_game"]:.1f}
+    Fantasy WAR......{pick["fantasy_war"]:.1f}
+    Draft Score......{pick["draft_value_score"]:.1f}
+    
+    Reason:
+    Best projected value available.
+    
+    ════════════════════════════════════
+    """
+    
+        return recommendation

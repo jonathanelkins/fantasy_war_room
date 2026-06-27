@@ -3,6 +3,8 @@ from src.loaders import NFLDataLoader
 from src.feature_store import FeatureStore
 from src.projection_engine import ProjectionEngine
 from src.value_engine import ValueEngine
+from src.draft_engine import DraftEngine
+import os
 
 
 loader = NFLDataLoader(SEASONS)
@@ -33,21 +35,49 @@ projected_values = projected_values.sort_values(
     ascending=False,
 )
 
+EXPORT_DIR = "exports"
+
+os.makedirs(EXPORT_DIR, exist_ok=True)
+
+projected_values.to_csv(
+    os.path.join(EXPORT_DIR, "projected_draft_values.csv"),
+    index=False,
+)
+
+draft_engine = DraftEngine(projected_values, LEAGUE_SETTINGS)
+
+board = draft_engine.build_board()
+
+display_board = draft_engine.best_available(board, n=15).copy()
+
+display_board[
+    [
+        "projected_ppr_per_game",
+        "fantasy_war",
+        "draft_value_score",
+    ]
+] = display_board[
+    [
+        "projected_ppr_per_game",
+        "fantasy_war",
+        "draft_value_score",
+    ]
+].round(2)
+
 print(
-    projected_values[
+    display_board[
         [
-            "war_rank",
-            "position_rank",
+            "available_rank",
+            "overall_rank",
             "player_display_name",
             "position",
             "team",
-            "projected_ppr_per_game",
-            "replacement_ppg",
-            "fantasy_war",
             "value_tier",
+            "projected_ppr_per_game",
+            "fantasy_war",
             "draft_value_score",
         ]
-    ]
-    .head(40)
-    .to_string(index=False)
+    ].to_string(index=False)
 )
+
+print(draft_engine.recommend_pick(board))
