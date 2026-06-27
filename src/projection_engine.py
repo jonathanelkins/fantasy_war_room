@@ -11,11 +11,12 @@ class ProjectionEngine:
     to the next stage.
     """
 
-    def __init__(self, features, league_settings):
+    def __init__(self, features, league_settings, current_rosters=None):
 
         self.features = features.copy()
         self.league_settings = league_settings
         self.scoring = league_settings["scoring"]
+        self.current_rosters = current_rosters.copy() if current_rosters is not None else None
 
     def weighted_average(
             self,
@@ -59,9 +60,19 @@ class ProjectionEngine:
 
         projections = self.initialize_projection_table()
 
+        projections = self.apply_current_rosters(projections)
+
+        projections = self.apply_excluded_players(projections)
+
+        projections = self.apply_current_team_context(projections)
+
         projections = self.project_games(projections)
 
         projections = self.project_volume(projections)
+
+        projections = self.apply_roster_cutoffs(projections)
+
+        projections = self.normalize_team_targets(projections)
 
         projections = self.project_efficiency(projections)
 
@@ -384,5 +395,233 @@ class ProjectionEngine:
         ] = 0
 
         return projections
+    
+    def apply_current_rosters(self, projections):
 
+        projections = projections.copy()
 
+        if self.current_rosters is None:
+            return projections
+        
+        roster_cols = [
+            "gsis_id",
+            "team",
+            "position",
+            "status",
+            "depth_chart_position",
+            "years_exp",
+        ]
+
+        current = self.current_rosters[roster_cols].copy()
+
+        current = current.rename(
+            columns={
+                "gsis_id": "player_id",
+                "team": "current_team",
+                "position": "current_position",
+            }
+        )
+
+        current = current.drop_duplicates(subset=["player_id"])
+
+        projections = projections.merge(
+            current,
+            on="player_id",
+            how="left",
+        )
+
+        projections["team"] = projections["current_team"].fillna(projections["team"])
+        projections["position"] = projections["current_position"].fillna(projections["position"])
+
+        return projections
+
+    def apply_current_team_context(self, projections):
+
+        projections = projections.copy()
+
+        team_context_cols = [
+            "season",
+            "team",
+            "team_pass_attempts",
+            "team_carries",
+            "team_targets",
+            "team_ppr",
+            "team_total_opportunities",
+            "team_pass_rate",
+        ]
+
+        team_context = (
+            self.features[team_context_cols]
+            .drop_duplicates(subset=["season", "team"])
+            .copy()
+        )
+
+        latest_season = self.features["season"].max()
+
+        latest_team_context = team_context[
+            team_context["season"] == latest_season
+        ].copy()
+
+        latest_team_context = latest_team_context.drop(columns=["season"])
+
+        latest_team_context = latest_team_context.rename(
+            columns={
+                "team": "current_team_for_context",
+                "team_pass_attempts": "current_team_pass_attempts",
+                "team_carries": "current_team_carries",
+                "team_targets": "current_team_targets",
+                "team_ppr": "current_team_ppr",
+                "team_total_opportunities": "current_team_total_opportunities",
+                "team_pass_rate": "current_team_pass_rate",
+            }
+        )
+
+        projections = projections.merge(
+            latest_team_context,
+            left_on="team",
+            right_on="current_team_for_context",
+            how="left"
+        )
+
+        projections["team_pass_attempts"] = projections[
+            "current_team_pass_attempts"
+        ].fillna(projections["team_pass_attempts"])
+
+        projections["team_carries"] = projections[
+            "current_team_carries"
+        ].fillna(projections["team_carries"])
+
+        projections["team_targets"] = projections[
+            "current_team_targets"
+        ].fillna(projections["team_targets"])
+
+        projections["team_ppr"] = projections[
+            "current_team_ppr"
+        ].fillna(projections["team_ppr"])
+
+        projections["team_total_opportunities"] = projections[
+            "current_team_total_opportunities"
+        ].fillna(projections["team_total_opportunities"])
+
+        projections["team_pass_rate"] = projections[
+            "current_team_pass_rate"
+        ].fillna(projections["team_pass_rate"])
+
+        drop_cols = [
+            "current_team_for_context",
+            "current_team_pass_attempts",
+            "current_team_carries",
+            "current_team_targets",
+            "current_team_ppr",
+            "current_team_total_opportunities",
+            "current_team_pass_rate",
+        ]
+
+        projections = projections.drop(columns=drop_cols)
+
+        return projections
+    
+    def apply_excluded_players(self, projections):
+
+        projections = projections.copy()
+
+        try:
+            excluded = pd.read_csv("data/manual/excluded_players.csv")
+        except FileNotFoundError:
+            return projections
+        
+        excluded_names = excluded["player_display_name"].tolist()
+
+        projections = projections[
+            ~projections["player_display_name"].isin(excluded_names)
+        ].copy()
+
+        return projections
+
+    def normalize_team_targets(self, projections):
+
+        projections = projections.copy()
+
+        team_target_totals = (
+            projections[projections["position"].isin(["RB", "WR", "TE"])]
+            .groupby("team", as_index=False)
+            .agg(
+                projected_team_player_targets=("projected_targets", "sum"),
+                projected_team_targets=("team_targets", "max"),
+            )
+        )
+
+        team_target_totals["target_scale_factor"] = (
+            team_target_totals["projected_team_targets"]
+            / team_target_totals["projected_team_player_targets"]
+        )
+
+        team_target_totals["target_scale_factor"] = (
+            team_target_totals["target_scale_factor"]
+            .replace([float("inf"), float("-inf")], 1)
+            .fillna(1)
+            .clip(lower=0.60, upper=1.25)
+        )
+
+        projections = projections.merge(
+            team_target_totals[
+                [
+                    "team",
+                    "projected_team_player_targets",
+                    "projected_team_targets",
+                    "target_scale_factor",
+                ]
+            ],
+            on="team",
+            how="left"
+        )
+
+        projections["projected_targets"] = (
+            projections["projected_targets"]
+            * projections["target_scale_factor"]
+        )
+
+        return projections
+    
+    def apply_roster_cutoffs(self, projections):
+
+        projections = projections.copy()
+
+        roster_limits = {
+            "QB": 2,
+            "RB": 4,
+            "WR": 5,
+            "TE": 3,
+        }
+
+        projections["temporary_role_score"] = (
+            projections["projected_pass_attempts"]
+            + projections["projected_carries"] 
+            + projections["projected_targets"]
+        )
+
+        projections["projection_roster_rank"] = (
+            projections
+            .groupby(["team", "position"])["temporary_role_score"]
+            .rank(method="first", ascending=False)
+        )
+
+        for position, limit in roster_limits.items():
+
+            mask = (
+                (projections["position"] == position)
+                & (projections["projection_roster_rank"] > limit)
+            )
+
+            projections.loc[
+                mask,
+                [
+                    "projected_pass_attempts",
+                    "projected_carries",
+                    "projected_targets",
+                ],
+            ] = 0
+
+        return projections
+    
+    

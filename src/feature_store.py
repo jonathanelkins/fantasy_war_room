@@ -157,6 +157,15 @@ class FeatureStore:
         features = self.add_efficiency_features(features)
         features = self.add_consistency_features(features)
         features = self.add_player_metadata(features)
+        team_features = self.build_team_features()
+
+        features = features.merge(
+            team_features,
+            on=["season", "team"],
+            how="left",
+        )
+
+        features = self.add_player_shares(features)
         features = self.add_percentile_scores(features)
 
         features = features.sort_values(
@@ -381,4 +390,55 @@ class FeatureStore:
             how="left",
         )
 
+        return features
+    
+    def build_team_features(self):
+
+        weekly = self.clean_weekly()
+        regular_season = weekly[weekly["season_type"] == "REG"].copy()
+
+        team_features = (
+            regular_season
+            .groupby(["season", "team"], as_index=False)
+            .agg(
+                team_pass_attempts=("attempts", "sum"),
+                team_carries=("carries", "sum"),
+                team_targets=("targets", "sum"),
+                team_ppr=("fantasy_points_ppr", "sum"),
+            )
+        )
+
+        team_features["team_total_opportunities"] = (
+            team_features["team_carries"]
+            + team_features["team_targets"]
+        )
+
+        team_features["team_pass_rate"] = (
+            team_features["team_pass_attempts"]
+            / (
+                team_features["team_pass_attempts"]
+                + team_features["team_carries"]
+            )
+        )
+
+        return team_features
+    
+    def add_player_shares(self, features):
+
+        features = features.copy()
+
+        features["target_share"] = (
+            features["targets"] / features["team_targets"]
+        )
+
+        features["rush_share"] = (
+            features["carries"] / features["team_carries"]
+        )
+
+        features["opportunity_share"] = (
+            features["opportunities"] / features["team_total_opportunities"]
+        )
+
+        features = self.clean_numeric_features(features)
+        
         return features

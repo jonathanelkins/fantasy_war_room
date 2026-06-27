@@ -1,4 +1,4 @@
-from src.config import SEASONS, LEAGUE_SETTINGS
+from src.config import SEASONS, LEAGUE_SETTINGS, CURRENT_SEASON
 from src.loaders import NFLDataLoader
 from src.feature_store import FeatureStore
 from src.projection_engine import ProjectionEngine
@@ -11,6 +11,9 @@ loader = NFLDataLoader(SEASONS)
 
 weekly = loader.load_weekly()
 rosters = loader.load_rosters()
+historical_rosters = rosters.copy()
+current_loader = NFLDataLoader([CURRENT_SEASON])
+current_rosters = current_loader.load_rosters()
 schedules = loader.load_schedules()
 
 store = FeatureStore(weekly, rosters, schedules)
@@ -22,7 +25,11 @@ projection_features = features[
     features["position"].isin(["QB", "RB", "WR", "TE"])
 ].copy()
 
-projection_engine = ProjectionEngine(projection_features, LEAGUE_SETTINGS)
+projection_engine = ProjectionEngine(
+    projection_features,
+    LEAGUE_SETTINGS,
+    current_rosters,
+)
 
 projections = projection_engine.build()
 
@@ -44,40 +51,22 @@ projected_values.to_csv(
     index=False,
 )
 
-draft_engine = DraftEngine(projected_values, LEAGUE_SETTINGS)
-
-board = draft_engine.build_board()
-
-display_board = draft_engine.best_available(board, n=15).copy()
-
-display_board[
-    [
-        "projected_ppr_per_game",
-        "fantasy_war",
-        "draft_value_score",
-    ]
-] = display_board[
-    [
-        "projected_ppr_per_game",
-        "fantasy_war",
-        "draft_value_score",
-    ]
-].round(2)
+inspect = projected_values[projected_values["team"] == "NE"].copy()
 
 print(
-    display_board[
+    inspect[
         [
-            "available_rank",
-            "overall_rank",
             "player_display_name",
             "position",
             "team",
-            "value_tier",
+            "projected_targets",
+            "target_scale_factor",
+            "projected_team_player_targets",
+            "projected_team_targets",
             "projected_ppr_per_game",
-            "fantasy_war",
-            "draft_value_score",
         ]
-    ].to_string(index=False)
+    ]
+    .sort_values("projected_targets", ascending=False)
+    .head(15)
+    .to_string(index=False)
 )
-
-print(draft_engine.recommend_pick(board))
