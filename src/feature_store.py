@@ -223,6 +223,22 @@ class FeatureStore:
             features["total_touches"] / features["games"]
         )
 
+        features["carries_per_game"] = (
+            features["carries"] / features["games"]
+        )
+
+        features["targets_per_game"] = (
+            features["targets"] / features["games"]
+        )
+
+        features["attempts_per_game"] = (
+            features["attempts"] / features["games"]
+        )
+
+        features["receptions_per_game"] = (
+            features["receptions"] / features["games"]
+        )
+
         return features
     
     def add_efficiency_features(self, features):

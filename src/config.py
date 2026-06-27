@@ -17,12 +17,20 @@ LEAGUE_SETTINGS = {
     "bench": 7,
 
     # Scoring
-    "ppr": 1.0,
-    "passing_td": 4,
-    "passing_yards": 25,
-    "rushing_yards": 10,
-    "receiving_yards": 10,
+    "scoring": {
+        "passing_yard": 0.04,
+        "passing_td": 4,
+        "interception": -2,
 
+        "rushing_yard": 0.10,
+        "rushing_td": 6,
+
+        "receiving_yard": 0.10,
+        "receiving_td": 6,
+        "reception": 1,
+
+        "fumble_lost": -2,
+    },
 }
 
 VALUE_SETTINGS = {
