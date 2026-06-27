@@ -2,6 +2,7 @@ from src.config import SEASONS, LEAGUE_SETTINGS
 from src.loaders import NFLDataLoader
 from src.feature_store import FeatureStore
 from src.projection_engine import ProjectionEngine
+from src.value_engine import ValueEngine
 
 
 loader = NFLDataLoader(SEASONS)
@@ -23,32 +24,30 @@ projection_engine = ProjectionEngine(projection_features, LEAGUE_SETTINGS)
 
 projections = projection_engine.build()
 
-projections = projections.sort_values(
-    "projected_fantasy_points_ppr",
+value_engine = ValueEngine(projections, LEAGUE_SETTINGS)
+
+projected_values = value_engine.calculate_war()
+
+projected_values = projected_values.sort_values(
+    "draft_value_score",
     ascending=False,
 )
 
 print(
-    projections[
+    projected_values[
         [
+            "war_rank",
+            "position_rank",
             "player_display_name",
             "position",
             "team",
-            "projected_games",
-            "projected_carries",
-            "projected_targets",
-            "projected_receptions",
-            "projected_rushing_yards",
-            "projected_receiving_yards",
-            "projected_pass_attempts",
-            "projected_passing_yards",
-            "projected_passing_tds",
-            "projected_rushing_tds",
-            "projected_receiving_tds",
-            "projected_fantasy_points_ppr",
             "projected_ppr_per_game",
+            "replacement_ppg",
+            "fantasy_war",
+            "value_tier",
+            "draft_value_score",
         ]
     ]
-    .head(25)
+    .head(40)
     .to_string(index=False)
 )

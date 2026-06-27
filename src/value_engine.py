@@ -35,13 +35,13 @@ class ValueEngine:
         for position, replacement_rank in replacement_ranks.items():
             position_players = (
                 self.features[self.features["position"] == position]
-                .sort_values("ppr_per_game", ascending=False)
+                .sort_values("projected_ppr_per_game", ascending=False)
                 .copy()
             )
 
             replacement_player = position_players.iloc[replacement_rank - 1]
 
-            values[position] = replacement_player["ppr_per_game"]
+            values[position] = replacement_player["projected_ppr_per_game"]
 
         return values
     
@@ -53,7 +53,7 @@ class ValueEngine:
         features["replacement_ppg"] = features["position"].map(replacement_values)
 
         features["fantasy_war"] = (
-            features["ppr_per_game"] - features["replacement_ppg"]
+            features["projected_ppr_per_game"] - features["replacement_ppg"]
         )
 
         features["fantasy_war"] = features["fantasy_war"].clip(lower=0)
@@ -74,7 +74,7 @@ class ValueEngine:
         features = self.add_value_tiers(features)
 
         features["draft_value_score"] = (
-            features["overall_player_score"] * 0.5
+            features["projected_ppr_per_game"] * 0.5
             + features["fantasy_war"] * 5
         )
 
