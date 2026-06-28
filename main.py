@@ -4,6 +4,7 @@ from src.feature_store import FeatureStore
 from src.projection_engine import ProjectionEngine
 from src.value_engine import ValueEngine
 from src.draft_engine import DraftEngine
+from src.role_engine import RoleEngine
 import os
 
 
@@ -33,6 +34,16 @@ projection_engine = ProjectionEngine(
 
 projections = projection_engine.build()
 
+role_engine = RoleEngine(projections)
+projections = role_engine.build()
+
+qb_mask = projections["position"] == "QB"
+
+projections.loc[qb_mask, "projected_pass_attempts"] = (
+    projections.loc[qb_mask, "team_pass_attempts"]
+    * projections.loc[qb_mask, "qb_pass_attempt_share"]
+)
+
 value_engine = ValueEngine(projections, LEAGUE_SETTINGS)
 
 projected_values = value_engine.calculate_war()
@@ -55,30 +66,26 @@ projected_values.to_csv(
     index=False,
 )
 
-inspect = projected_values[
-    projected_values["player_display_name"].isin(
-        ["Jaxon Smith-Njigba", "Puka Nacua", "Amon-Ra St. Brown"]
-    )
+inspect = projections[
+    (projections["team"] == "NE")
+    & (projections["position"].isin(["QB", "RB", "WR", "TE"]))
 ].copy()
 
 print(
     inspect[
         [
             "player_display_name",
-            "team",
             "position",
+            "team",
+            "role_score",
+            "team_position_rank",
+            "role_label",
+            "projection_active",
             "projected_targets",
-            "target_scale_factor",
-            "projected_team_player_targets",
-            "projected_team_targets",
-            "projected_receptions",
-            "projected_receiving_yards",
-            "projected_receiving_tds",
-            "projected_ppr_per_game",
-            "fantasy_war",
-            "draft_value_score",
+            "projected_carries",
+            "projected_pass_attempts",
         ]
     ]
-    .sort_values("draft_value_score", ascending=False)
+    .sort_values(["position", "team_position_rank"])
     .to_string(index=False)
 )
