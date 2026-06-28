@@ -72,6 +72,8 @@ class ProjectionEngine:
 
         projections = self.apply_roster_cutoffs(projections)
 
+        projections = self.apply_projection_active_flag(projections)
+
         projections = self.normalize_team_targets(projections)
 
         projections = self.project_efficiency(projections)
@@ -621,6 +623,22 @@ class ProjectionEngine:
                     "projected_targets",
                 ],
             ] = 0
+
+        return projections
+    
+    def apply_projection_active_flag(self, projections):
+
+        projections = projections.copy()
+
+        projection_columns = [
+            "projected_pass_attempts",
+            "projected_carries",
+            "projected_targets",
+        ]
+
+        projections["projection_active"] = (
+            projections[projection_columns].sum(axis=1) > 0
+        )
 
         return projections
     

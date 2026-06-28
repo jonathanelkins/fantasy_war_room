@@ -2,10 +2,11 @@ import pandas as pd
 
 class FeatureStore:
     
-    def __init__(self, weekly, rosters=None, schedules=None):
+    def __init__(self, weekly, rosters=None, schedules=None, current_rosters=None):
         self.weekly = weekly.copy()
         self.rosters = rosters.copy() if rosters is not None else None
         self.schedules = schedules.copy() if schedules is not None else None
+        self.current_rosters = current_rosters.copy() if current_rosters is not None else None
 
     def build(self):
         """
@@ -163,6 +164,28 @@ class FeatureStore:
             team_features,
             on=["season", "team"],
             how="left",
+        )
+
+        team_opportunity = self.build_team_opportunity_table()
+
+        features = features.merge(
+            team_opportunity[
+                [
+                    "season",
+                    "team",
+                    "returning_targets",
+                    "returning_carries",
+                    "returning_attempts",
+                    "vacated_targets",
+                    "vacated_carries",
+                    "vacated_attempts",
+                    "vacated_target_pct",
+                    "vacated_carry_pct",
+                    "vacated_pass_pct",
+                ]
+            ],
+            on=["season", "team"],
+            how="left"
         )
 
         features = self.add_player_shares(features)
@@ -442,3 +465,106 @@ class FeatureStore:
         features = self.clean_numeric_features(features)
         
         return features
+
+    def build_team_opportunity_table(self):
+
+        team = (
+            self.weekly
+            .groupby(["season", "team"])
+            .agg(
+                team_pass_attempts=("attempts","sum"),
+                team_carries=("carries", "sum"),
+                team_targets=("targets", "sum"),
+            )
+            .reset_index()
+        )
+
+        if self.current_rosters is not None:
+            current_rosters = self.current_rosters[
+                ["gsis_id", "team"]
+            ].copy()
+        else:
+            current_rosters = (
+                self.rosters
+                .sort_values("season")
+                .groupby("gsis_id", as_index=False)
+                .tail(1)
+                [["gsis_id", "team"]]
+            )
+
+        current_rosters = current_rosters.rename(
+            columns={
+                "gsis_id": "player_id",
+                "team": "current_team",
+            }
+        )
+
+        history = (
+            self.weekly
+            .groupby(
+                ["season", "team", "player_id", "player_display_name"],
+                as_index=False
+            )
+            .agg(
+                targets=("targets", "sum"),
+                carries=("carries", "sum"),
+                attempts=("attempts", "sum"),
+            )
+        )    
+
+        history = history.merge(
+            current_rosters,
+            on="player_id",
+            how="left",
+        )
+
+        history["is_returning"] = (
+            history["team"] == history["current_team"]
+        )
+
+        returning = (
+            history[history["is_returning"]]
+            .groupby(["season", "team"], as_index=False)
+            .agg(
+                returning_targets=("targets", "sum"),
+                returning_carries=("carries", "sum"),
+                returning_attempts=("attempts", "sum"),
+            )
+        )
+
+        team = team.merge(
+            returning,
+            on=["season", "team"],
+            how="left"
+        )
+
+        team = team.fillna(0)
+
+        team["vacated_targets"] = (
+            team["team_targets"] - team["returning_targets"]
+        )
+
+        team["vacated_carries"] = (
+            team["team_carries"] - team["returning_carries"]
+        )
+
+        team["vacated_attempts"] = (
+            team["team_pass_attempts"] - team["returning_attempts"]
+        )
+
+        team["vacated_target_pct"] = (
+            team["vacated_targets"] / team["team_targets"]
+        )
+
+        team["vacated_carry_pct"] = (
+            team["vacated_carries"] / team["team_carries"]
+        )
+
+        team["vacated_pass_pct"] = (
+            team["vacated_attempts"] / team["team_pass_attempts"]
+        )
+
+        team = self.clean_numeric_features(team)
+
+        return team
+    
