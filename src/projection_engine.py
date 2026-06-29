@@ -403,6 +403,8 @@ class ProjectionEngine:
         projections = projections.copy()
 
         if self.current_rosters is None:
+            projections["historical_team"] = projections["team"]
+            projections["changed_teams"] = False
             return projections
         
         roster_cols = [
@@ -432,8 +434,28 @@ class ProjectionEngine:
             how="left",
         )
 
+        print(
+            projections[
+                projections["player_display_name"] == "A.J. Brown"
+            ][
+                [
+                    "season",
+                    "team",
+                    "current_team",
+                ]
+            ]
+            .sort_values("season")
+            .to_string(index=False)
+        )
+
+        projections["historical_team"] = projections["team"]
+
         projections["team"] = projections["current_team"].fillna(projections["team"])
         projections["position"] = projections["current_position"].fillna(projections["position"])
+
+        projections["changed_teams"] = (
+            projections["historical_team"] != projections["team"]
+        )
 
         return projections
 
